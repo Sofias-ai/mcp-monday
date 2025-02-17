@@ -1,53 +1,63 @@
 # Monday.com MCP Client
 
-Cliente MCP para interactuar con Monday.com a través de su API GraphQL.
+MCP Client for interacting with Monday.com through its GraphQL API.
 
-## Requisitos
+## Requirements
 
-- Python 3.8 o superior
-- Token de API de Monday.com
-- ID del tablero de Monday.com
+- Python 3.8 or higher
+- Monday.com API Token
+- Monday.com Board ID
 
-## Instalación
+## Installation
 
-1. Clona este repositorio
-2. Crea y activa el entorno virtual:
+1. Clone this repository
+2. Create and activate virtual environment:
 ```bash
 python -m venv mcpMondayVenv
-# En Windows:
+# On Windows:
 mcpMondayVenv\Scripts\activate
-# En Linux/Mac:
+# On Linux/Mac:
 source mcpMondayVenv/bin/activate
 ```
-3. Instala las dependencias:
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
-4. Copia el archivo `.env.example` a `.env` y configura tus credenciales:
+4. Copy `.env.example` to `.env` and configure your credentials:
 ```properties
-MONDAY_API_KEY=tu_api_key
-MONDAY_BOARD_ID=tu_board_id
+MONDAY_API_KEY=your_api_key
+MONDAY_BOARD_ID=your_board_id
 ```
 
-## Uso
+## Server Tools
 
-1. Inicia el servidor:
-```bash
-python monday_server.py --transport stdio
-```
+The server provides the following tools for interacting with Monday.com:
 
-2. En otra terminal, inicia el cliente:
-```bash
-python monday_client.py
-```
+### Available Tools
 
-## Herramientas disponibles
+1. `get_board_data`
+   - Gets all data from the configured board
+   - No parameters required
 
-- `get_board_data`: Obtiene todos los datos del tablero configurado
-- `search_board_items`: Busca elementos en el tablero por campo y valor
+2. `search_board_items`
+   - Searches for items in the board by field and value
+   - Parameters: 
+     - `field`: Field name to search
+     - `value`: Value to search for
+
+3. `delete_board_items`
+   - Deletes items from the board that match a specific field and value
+   - Parameters:
+     - `field`: Field name to match
+     - `value`: Value to match
+
+4. `create_board_item`
+   - Creates a new item in the board
+   - Parameters:
+     - `values`: Comma-separated values in order:
+       name,date,email,type,priority,location,description,text,area,category
 
 ## Logs
 
-Los logs se almacenan en:
-- `monday_server.log` para el servidor
-- `monday_client.log` para el cliente
+Logs are stored in:
+- `monday_server.log` for server logs
