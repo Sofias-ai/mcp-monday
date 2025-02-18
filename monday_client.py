@@ -23,55 +23,143 @@ async def display_tool_menu(tools):
         print(f"{i}. {tool.name}: {tool.description or 'No description available'}")
     print("0. Exit")
 
-async def format_board_data(data):
-    """Format board data in a readable way"""
+async def display_board_schema(session):
+    """Display the board schema to help with column selection"""
     try:
-        board_data = data["data"]["boards"][0]
-        board_name = board_data["name"]
-        items = board_data["items_page"]["items"]
-        
-        output = [f"\nBoard: {board_name}"]
-        output.append("-" * 80)
-        
-        for item in items:
-            output.append(f"\nRecord ID: {item['id']}")
-            output.append(f"Name: {item['name']}")
-            output.append("Fields:")
-            for column in item["column_values"]:
-                if column["text"]:
-                    output.append(f"  - {column['id']}: {column['text']}")
-            output.append("-" * 40)
-            
-        return "\n".join(output)
+        response = await session.read_resource("monday://board/schema")
+        if response and response.contents:
+            schema = json.loads(response.contents[0].text)
+            print("\nBoard Columns:")
+            for i, column in enumerate(schema["columns"], 1):
+                settings = {}
+                if column.get("settings_str"):
+                    try:
+                        settings = json.loads(column["settings_str"])
+                    except:
+                        pass
+                
+                print(f"{i}. {column['title']} (Type: {column['type']})")
+                if "labels" in settings:
+                    values = list(settings["labels"].values())
+                    print(f"   Valid values: {', '.join(values)}")
+                print(f"   Column ID: {column['id']}")
+                
     except Exception as e:
-        logger.error(f"Error formatting data: {str(e)}")
-        return str(data)
+        logger.error(f"Error displaying schema: {str(e)}")
+        print("Could not fetch board schema")
 
-async def get_tool_parameters(tool_name):
+async def get_tool_parameters(tool_name, session):
     """Get parameters for a specific tool"""
     if tool_name in ["search_board_items", "delete_board_items"]:
-        print("\nEnter parameters separated by comma:")
-        print("Format: field_name,search_value")
-        params = input("> ").strip().split(',')
-        if len(params) != 2:
-            print("Error: Exactly 2 parameters required (field_name,search_value)")
+        await display_board_schema(session)
+        
+        print("\nEnter field name and value separated by comma:")
+        print("Example: name,Test")
+        try:
+            field, value = input("> ").strip().split(',', 1)
+            return {
+                "args": {
+                    "field": field.strip(),
+                    "value": value.strip()
+                }
+            }
+        except ValueError:
+            print("Error: Invalid format. Expected: field,value")
             return None
-        return {
-            "field": params[0].strip(),
-            "value": params[1].strip()
-        }
+            
     elif tool_name == "create_board_item":
-        print("\nEnter values for the new record separated by comma:")
-        print("Format: name,date,email,type,priority,location,description,text,area,category")
-        print("Example: Test 03,2025-02-17,email@domain.com,Software,High,Madrid,Long description,Short text,Finance,Request")
-        values = input("> ").strip()
-        if not values:
-            print("Error: No values provided")
+        await display_board_schema(session)
+        
+        print("\nEnter item name:")
+        item_name = input("Name> ").strip()
+        
+        print("\nEnter values for columns as a comma-separated list:")
+        print("The order should match the columns shown above")
+        print("Leave empty for skipping a column")
+        print("You need to provide 10 values (or less)")
+        print("Example: 2025-02-18, test@example.com, Software, High, Madrid")
+        
+        try:
+            values = input("> ").strip().split(',')
+            values = [v.strip() for v in values]
+            
+            # Map values to column IDs
+            schema = json.loads((await session.read_resource("monday://board/schema")).contents[0].text)
+            columns = schema["columns"][1:]  # Skip 'name' column
+            
+            column_values = {"name": item_name}
+            for col, val in zip(columns, values):
+                if val:  # Only add non-empty values
+                    column_values[col["id"]] = val
+                    
+            return {
+                "args": {
+                    "item_name": item_name,
+                    "column_values": column_values
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error preparing parameters: {str(e)}")
+            print(f"Error: {str(e)}")
             return None
-        return {
-            "values": values
-        }
+    
     return {}
+
+async def format_response(response_text):
+    """Format the response in a readable way"""
+    try:
+        data = json.loads(response_text)
+        
+        if "success" in data:
+            print(f"\nSearch Results:")
+            if data.get("matches_found", 0) > 0:
+                print(f"Found {data['matches_found']} matches:")
+                print("-" * 50)
+                
+                for item in data["items"]:
+                    print(f"Item ID: {item['id']}")
+                    print(f"Name: {item['name']}")
+                    if item.get("column_values"):
+                        print("Details:")
+                        for col in item["column_values"]:
+                            print(f"  • {col['title']}: {col['value']}")
+                    print("-" * 50)
+            else:
+                print("No matches found")
+                
+            if data.get("errors"):
+                print("\nErrors:")
+                for error in data["errors"]:
+                    print(f"- {error}")
+                    
+        elif "data" in data and "boards" in data["data"]:
+            # Procesar datos del tablero
+            board = data["data"]["boards"][0]
+            
+            print(f"\nBoard data:")
+            items = board["items_page"]["items"]
+            for item in items:
+                print(f"\nItem ID: {item['id']}")
+                print(f"Name: {item['name']}")
+                print("Column values:")
+                for col in item["column_values"]:
+                    if col.get('text'):
+                        # Use column title instead of ID
+                        print(f"  • {col['title']}: {col['text']}")
+                print("-" * 40)
+            
+        else:
+            print("\nRaw Response:")
+            print(json.dumps(data, indent=2, ensure_ascii=False))
+            
+    except json.JSONDecodeError:
+        print(f"\nNon-JSON Response:\n{response_text}")
+    except Exception as e:
+        logger.error(f"Error formatting response: {str(e)}", exc_info=True)
+        print(f"Error formatting response: {str(e)}")
+        print("\nRaw response:")
+        print(response_text)
 
 async def execute_tool(session, tool, params):
     """Execute a tool and display its results"""
@@ -80,50 +168,7 @@ async def execute_tool(session, tool, params):
         if result and result.content:
             for content in result.content:
                 if content.type == "text":
-                    try:
-                        json_data = json.loads(content.text)
-                        
-                        # Case 1: delete_board_items response
-                        if "success" in json_data:
-                            if json_data["success"]:
-                                print(f"\nSuccess: {json_data['message']}")
-                                if "deleted_items" in json_data:
-                                    print("\nDeleted items:")
-                                    for item in json_data["deleted_items"]:
-                                        print(f"- ID: {item['id']}, Name: {item['name']}")
-                            else:
-                                print(f"\nError: {json_data['message']}")
-                                if "error" in json_data:
-                                    print(f"Details: {json_data['error']}")
-                            return
-
-                        # Case 2: search_board_items response
-                        if "matches_found" in json_data:
-                            print(f"\nMatches found: {json_data['matches_found']}")
-                            if json_data['matches_found'] > 0:
-                                print("\nMatching items:")
-                                for item in json_data["items"]:
-                                    print(f"\nRecord ID: {item['id']}")
-                                    print(f"Name: {item['name']}")
-                                    print(f"Matching field: {item['matching_field']}")
-                                    print(f"Matching value: {item['matching_value']}")
-                                    print("\nFields:")
-                                    for field in item["fields"]:
-                                        print(f"  - {field['id']}: {field['text']}")
-                                    print("-" * 40)
-                            return
-
-                        # Case 3: get_board_data response (keep existing format)
-                        if "data" in json_data and "boards" in json_data["data"]:
-                            print(await format_board_data(json_data))
-                            return
-
-                        # Default case: display formatted JSON
-                        print("\nServer response:")
-                        print(json.dumps(json_data, indent=2, ensure_ascii=False))
-
-                    except json.JSONDecodeError:
-                        print(f"\nServer response (not JSON):\n{content.text}")
+                    await format_response(content.text)
     except Exception as e:
         logger.error(f"Error executing tool: {str(e)}")
         print(f"Error executing tool: {str(e)}")
@@ -154,7 +199,7 @@ async def interactive_loop(session):
                     selected_tool = tools[tool_index]
                     logger.debug(f"Selected tool: {selected_tool.name}")
                     
-                    params = await get_tool_parameters(selected_tool.name)
+                    params = await get_tool_parameters(selected_tool.name, session)
                     logger.debug(f"Parameters obtained: {params}")
                     
                     if params is not None:
@@ -194,7 +239,6 @@ async def main():
             logger.debug("Streams obtained from server")
             
             try:
-                # Removed encoding parameter from ClientSession
                 async with ClientSession(read_stream, write_stream) as session:
                     logger.info("MCP client connected to server.")
                     await session.initialize()
@@ -205,7 +249,7 @@ async def main():
                 
     except Exception as e:
         logger.error(f"General error: {str(e)}", exc_info=True)
-        raise  # Re-raise exception to ensure proper cleanup
+        raise
 
 if __name__ == "__main__":
     try:

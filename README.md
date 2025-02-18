@@ -1,63 +1,182 @@
-# Monday.com MCP Client
+# Monday.com MCP Server
 
-MCP Client for interacting with Monday.com through its GraphQL API.
+This project implements an **MCP server** that provides an **advanced interface** for interacting with **Monday.com's API** using **Model Context Protocol (MCP)**. This server enables the management of **boards, columns, and items** with intelligent validation, caching, and data transformation tools.
 
-## Requirements
+---
 
-- Python 3.8 or higher
-- Monday.com API Token
-- Monday.com Board ID
+## 🚀 **Key Features**
 
-## Installation
+✔ **MCP-based Interface**: Uses `mcp.server.fastmcp` to expose resources and tools.
+✔ **Intelligent Validations**: Normalizes and validates data before sending it to Monday.com.
+✔ **Support for Multiple Column Types**: Status, Text, Date, Email, Location, etc.
+✔ **Optimized Caching**: Reduces API load on Monday.com with built-in caching.
+✔ **Included Interactive Client**: Allows testing functionalities from the terminal.
+✔ **Easy Integration for Clients and Agents**: Can be used by any external application.
 
-1. Clone this repository
-2. Create and activate virtual environment:
-```bash
-python -m venv mcpMondayVenv
-# On Windows:
-mcpMondayVenv\Scripts\activate
-# On Linux/Mac:
-source mcpMondayVenv/bin/activate
+---
+
+## 📌 **Server Architecture**
+
+```plaintext
+┌────────────────────────┐
+│      MCP Client        │  
+│ (App, Agent, API, CLI) │
+└────────▲───────────────┘
+         │  
+         │    📡 Communication via MCP
+         ▼  
+┌──────────────────────────────┐
+│       MCP Server             │
+├──────────────────────────────┤
+│ - monday_server.py           │  🟢 Entry Point
+│ - monday_tools.py            │  🔧 Manipulation Functions
+│ - monday_resources.py        │  📚 Resources & Caching
+│ - monday_column_handlers.py  │  🛠 Validations & Formatting
+│ - monday_validators.py       │  ✅ Advanced Validations
+│ - monday_types.py            │  🔢 Data Type Definitions
+└──────────────────────────────┘
 ```
-3. Install dependencies:
+
+---
+
+## 📂 **Project Structure**
+
+```plaintext
+📦 monday-mcp-server
+ ┣ 📜 .env                  # Environment variables (API Key & Board ID)
+ ┣ 📜 requirements.txt       # Project dependencies
+ ┣ 📜 monday_server.py       # MCP server entry point
+ ┣ 📜 monday_tools.py        # MCP tool implementations
+ ┣ 📜 monday_resources.py    # Caching resources and Monday.com queries
+ ┣ 📜 monday_column_handlers.py # Data manipulation and validation
+ ┣ 📜 monday_validators.py   # Advanced validations
+ ┣ 📜 monday_types.py        # Data type definitions
+ ┣ 📜 monday_config.py       # Server and API configuration
+ ┣ 📜 monday_client.py       # Interactive client for testing tools
+ ┗ 📜 README.md              # Detailed documentation
+```
+
+---
+
+## 🔧 **Installation**
+
+1️⃣ **Clone the repository**
+```bash
+git clone https://github.com/sssSofiaS/mcp-monday.git
+cd monday-mcp-server
+```
+
+2️⃣ **Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
-4. Copy `.env.example` to `.env` and configure your credentials:
-```properties
-MONDAY_API_KEY=your_api_key
-MONDAY_BOARD_ID=your_board_id
+
+3️⃣ **Configure credentials** in `.env`
+```plaintext
+MONDAY_API_KEY=your-api-key
+MONDAY_BOARD_ID=your-board-id
 ```
 
-## Server Tools
+4️⃣ **Start the server**
+```bash
+python monday_server.py
+```
 
-The server provides the following tools for interacting with Monday.com:
+---
 
-### Available Tools
+## 📡 **How to Use the Server from a Client**
 
-1. `get_board_data`
-   - Gets all data from the configured board
-   - No parameters required
+### 🔗 **Connecting an MCP Client**
 
-2. `search_board_items`
-   - Searches for items in the board by field and value
-   - Parameters: 
-     - `field`: Field name to search
-     - `value`: Value to search for
+Any external application can communicate with this server using MCP. 
+Example connection from Python:
 
-3. `delete_board_items`
-   - Deletes items from the board that match a specific field and value
-   - Parameters:
-     - `field`: Field name to match
-     - `value`: Value to match
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+import asyncio
 
-4. `create_board_item`
-   - Creates a new item in the board
-   - Parameters:
-     - `values`: Comma-separated values in order:
-       name,date,email,type,priority,location,description,text,area,category
+async def connect_to_monday_server():
+    server_params = StdioServerParameters(
+        command="python",
+        args=["monday_server.py", "--transport", "stdio"]
+    )
+    
+    async with stdio_client(server_params) as streams:
+        async with ClientSession(*streams) as session:
+            await session.initialize()
+            print("Connected to Monday.com MCP server")
 
-## Logs
+asyncio.run(connect_to_monday_server())
+```
 
-Logs are stored in:
-- `monday_server.log` for server logs
+---
+
+## 🔎 **Available Tools**
+
+These are the MCP tools that can be invoked from a client:
+
+### **1️⃣ Retrieve Board Data**
+```python
+response = await session.call_tool("get_board_data")
+print(response.json())
+```
+
+### **2️⃣ Search for Items**
+```python
+response = await session.call_tool("search_board_items", {
+    "field": "status_column",
+    "value": "In Progress"
+})
+```
+
+### **3️⃣ Create an Item**
+```python
+response = await session.call_tool("create_board_item", {
+    "args": {
+        "item_name": "New Task",
+        "column_values": {
+            "status_column": "In Progress",
+            "date_column": "2025-02-18",
+            "email_column": "contact@example.com"
+        }
+    }
+})
+```
+
+### **4️⃣ Delete Items**
+```python
+response = await session.call_tool("delete_board_items", {
+    "field": "status_column",
+    "value": "Done"
+})
+```
+
+---
+
+## 🛠 **Debugging & Logging**
+
+The server generates logs in `monday_server.log`. You can enable detailed logging with:
+```bash
+export LOG_LEVEL=DEBUG
+python monday_server.py
+```
+
+---
+
+## ❓ **FAQ**
+
+### ❓ What do I need to use this server?
+👉 Python 3.8+ and a **Monday.com** account with an API Key.
+
+### ❓ Can I use it in production?
+👉 Yes, but consider implementing authentication and access control.
+
+### ❓ Can I add more tools?
+👉 Yes, you can add functions in `monday_tools.py` following the MCP structure.
+
+---
+
+## 🏆 **Conclusion**
+
+This MCP server provides a **powerful and flexible** interface for interacting with **Monday.com**. It can be used by **applications, AI agents, automation tools, and custom scripts**.
