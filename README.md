@@ -1,95 +1,142 @@
 # Monday.com MCP Server
 
-This project implements an **MCP server** that provides an **advanced interface** for interacting with **Monday.com's API** using **Model Context Protocol (MCP)**. This server enables the management of **boards, columns, and items** with intelligent validation, caching, and data transformation tools.
+Este proyecto implementa un **servidor MCP (Model Context Protocol)** optimizado que proporciona una **interfaz avanzada** para interactuar con la **API de Monday.com**. El servidor facilita la gestión de **tableros, columnas y elementos** con validación inteligente, caché y herramientas de transformación de datos.
 
 ---
 
-## 🚀 **Key Features**
+## 🚀 **Características Principales**
 
-✔ **MCP-based Interface**: Uses `mcp.server.fastmcp` to expose resources and tools.
-✔ **Intelligent Validations**: Normalizes and validates data before sending it to Monday.com.
-✔ **Support for Multiple Column Types**: Status, Text, Date, Email, Location, etc.
-✔ **Optimized Caching**: Reduces API load on Monday.com with built-in caching.
-✔ **Included Interactive Client**: Allows testing functionalities from the terminal.
-✔ **Easy Integration for Clients and Agents**: Can be used by any external application.
+✅ **Interfaz basada en MCP**: Utiliza `mcp.server.fastmcp` para exponer recursos y herramientas.
+
+✅ **Validaciones Inteligentes**: Normaliza y valida datos antes de enviarlos a Monday.com.
+
+✅ **Soporte para Múltiples Tipos de Columnas**: Status, Text, Date, Email, Location, etc. (33 tipos soportados).
+
+✅ **Caché Optimizado**: Reduce la carga en la API de Monday.com con caché integrado.
+
+✅ **Cliente Interactivo Incluido**: Permite probar las funcionalidades desde la terminal.
+
+✅ **Arquitectura Modular**: Código dividido en módulos específicos para facilitar mantenimiento y extensibilidad.
+
+✅ **Fácil Integración para Clientes y Agentes**: Puede ser utilizado por cualquier aplicación externa.
 
 ---
 
-## 📌 **Server Architecture**
+## 📌 **Arquitectura del Servidor**
 
 ```plaintext
 ┌────────────────────────┐
-│      MCP Client        │  
-│ (App, Agent, API, CLI) │
+│      Cliente MCP       │  
+│ (App, Agente, API, CLI)│
 └────────▲───────────────┘
          │  
-         │    📡 Communication via MCP
+         │    📡 Comunicación vía MCP
          ▼  
-┌──────────────────────────────┐
-│       MCP Server             │
-├──────────────────────────────┤
-│ - monday_server.py           │  🟢 Entry Point
-│ - monday_tools.py            │  🔧 Manipulation Functions
-│ - monday_resources.py        │  📚 Resources & Caching
-│ - monday_column_handlers.py  │  🛠 Validations & Formatting
-│ - monday_validators.py       │  ✅ Advanced Validations
-│ - monday_types.py            │  🔢 Data Type Definitions
-└──────────────────────────────┘
+┌───────────────────────────────────┐
+│       Servidor MCP                │
+├───────────────────────────────────┤
+│ - monday_server.py                │  🟢 Punto de Entrada
+│ - monday_tools.py                 │  🔧 Funciones de Manipulación
+│ - monday_resources.py             │  📚 Recursos y Caché
+│ - monday_column_handlers.py       │  🛠 Punto de Entrada para Manejadores
+│ - monday_column_handlers_basic.py │  🧱 Manejadores de Tipos Básicos
+│ - monday_column_handlers_advanced.│  🔥 Manejadores de Tipos Avanzados
+│ - monday_validators.py            │  ✅ Validaciones Avanzadas
+│ - monday_types.py                 │  🔢 Definiciones de Tipos de Datos
+│ - monday_config.py                │  ⚙️ Configuración General
+│ - monday_client.py                │  🖥️ Cliente Interactivo
+└───────────────────────────────────┘
 ```
 
 ---
 
-## 📂 **Project Structure**
+## 📂 **Estructura del Proyecto**
 
 ```plaintext
 📦 monday-mcp-server
- ┣ 📜 .env                  # Environment variables (API Key & Board ID)
- ┣ 📜 requirements.txt       # Project dependencies
- ┣ 📜 monday_server.py       # MCP server entry point
- ┣ 📜 monday_tools.py        # MCP tool implementations
- ┣ 📜 monday_resources.py    # Caching resources and Monday.com queries
- ┣ 📜 monday_column_handlers.py # Data manipulation and validation
- ┣ 📜 monday_validators.py   # Advanced validations
- ┣ 📜 monday_types.py        # Data type definitions
- ┣ 📜 monday_config.py       # Server and API configuration
- ┣ 📜 monday_client.py       # Interactive client for testing tools
- ┗ 📜 README.md              # Detailed documentation
+ ┣ 📜 .env                           # Variables de entorno (API Key y Board ID)
+ ┣ 📜 requirements.txt               # Dependencias del proyecto
+ ┣ 📜 monday_server.py               # Punto de entrada del servidor MCP
+ ┣ 📜 monday_tools.py                # Implementación de herramientas MCP
+ ┣ 📜 monday_resources.py            # Recursos en caché y consultas a Monday.com
+ ┣ 📜 monday_column_handlers.py      # Punto de entrada para manejadores de columnas
+ ┣ 📜 monday_column_handlers_basic.py# Manejadores para tipos básicos de columnas
+ ┣ 📜 monday_column_handlers_advanced.py # Manejadores para tipos avanzados
+ ┣ 📜 monday_validators.py           # Validaciones avanzadas
+ ┣ 📜 monday_types.py                # Definiciones de tipos de datos
+ ┣ 📜 monday_config.py               # Configuración del servidor y API
+ ┣ 📜 monday_client.py               # Cliente interactivo para pruebas
+ ┗ 📜 README.md                      # Documentación detallada
 ```
 
 ---
 
-## 🔧 **Installation**
+## 🛠️ **Componentes del Sistema**
 
-1️⃣ **Clone the repository**
+### 1. Manejadores de Columnas
+
+El sistema ha sido refactorizado para dividir los manejadores de columnas en dos grupos:
+
+- **Manejadores Básicos**: 
+  - `TextColumnHandler`, `LongTextColumnHandler`, `NumberColumnHandler`
+  - `DateColumnHandler`, `EmailColumnHandler`, `PhoneColumnHandler`
+  - `CheckboxColumnHandler`, `LinkColumnHandler`
+  - Otros tipos simples para datos atómicos
+
+- **Manejadores Avanzados**:
+  - `StatusColumnHandler`, `DropdownColumnHandler` (selecciones)
+  - `LocationColumnHandler`, `CountryColumnHandler` (geolocalización)
+  - `FormulaColumnHandler`, `TimeTrackingColumnHandler`
+  - Tipos visuales, metadatos y relaciones complejas
+
+### 2. Sistema de Validación
+
+- **Validadores Genéricos**: Sistema modular de validación con soporte para:
+  - Validación de tipos básicos (texto, número, fecha)
+  - Validación de formatos específicos (email, URL, teléfono)
+  - Validación de datos complejos (coordenadas, fórmulas, relaciones)
+  - Sugerencias inteligentes para valores incorrectos
+
+### 3. Comunicación MCP
+
+- **Recursos**: Acceso a datos de Monday.com mediante endpoints tipo REST
+- **Herramientas**: Operaciones de manipulación (búsqueda, creación, eliminación)
+- **Caché Inteligente**: Reduce llamadas a la API almacenando información de uso frecuente
+
+---
+
+## 🔧 **Instalación**
+
+1️⃣ **Clonar el repositorio**
 ```bash
 git clone https://github.com/sssSofiaS/mcp-monday.git
-cd monday-mcp-server
+cd mcp-monday
 ```
 
-2️⃣ **Install dependencies**
+2️⃣ **Instalar dependencias**
 ```bash
 pip install -r requirements.txt
 ```
 
-3️⃣ **Configure credentials** in `.env`
+3️⃣ **Configurar credenciales** en `.env`
 ```plaintext
-MONDAY_API_KEY=your-api-key
-MONDAY_BOARD_ID=your-board-id
+MONDAY_API_KEY=tu-api-key-de-monday
+MONDAY_BOARD_ID=tu-id-de-tablero
 ```
 
-4️⃣ **Start the server**
+4️⃣ **Iniciar el servidor**
 ```bash
 python monday_server.py
 ```
 
 ---
 
-## 📡 **How to Use the Server from a Client**
+## 📡 **Uso del Servidor desde un Cliente**
 
-### 🔗 **Connecting an MCP Client**
+### 🔗 **Conectando un Cliente MCP**
 
-Any external application can communicate with this server using MCP. 
-Example connection from Python:
+Cualquier aplicación externa puede comunicarse con este servidor usando MCP.
+Ejemplo de conexión desde Python:
 
 ```python
 from mcp import ClientSession, StdioServerParameters
@@ -105,78 +152,145 @@ async def connect_to_monday_server():
     async with stdio_client(server_params) as streams:
         async with ClientSession(*streams) as session:
             await session.initialize()
-            print("Connected to Monday.com MCP server")
+            print("Conectado al servidor MCP de Monday.com")
 
 asyncio.run(connect_to_monday_server())
 ```
 
 ---
 
-## 🔎 **Available Tools**
+## 🔎 **Herramientas Disponibles**
 
-These are the MCP tools that can be invoked from a client:
+Estas son las herramientas MCP que pueden ser invocadas desde un cliente:
 
-### **1️⃣ Retrieve Board Data**
+### **1️⃣ Obtener Datos del Tablero**
 ```python
 response = await session.call_tool("get_board_data")
 print(response.json())
 ```
 
-### **2️⃣ Search for Items**
+### **2️⃣ Buscar Elementos**
 ```python
 response = await session.call_tool("search_board_items", {
-    "field": "status_column",
-    "value": "In Progress"
+    "args": {
+        "field": "nombre_columna_status",
+        "value": "En Progreso"
+    }
 })
 ```
 
-### **3️⃣ Create an Item**
+### **3️⃣ Crear un Elemento**
 ```python
 response = await session.call_tool("create_board_item", {
     "args": {
-        "item_name": "New Task",
+        "item_name": "Nueva Tarea",
         "column_values": {
-            "status_column": "In Progress",
-            "date_column": "2025-02-18",
-            "email_column": "contact@example.com"
+            "columna_status": "En Progreso",
+            "columna_fecha": "2025-03-09",  # Usa formato ISO8601 para fechas
+            "columna_email": "contacto@ejemplo.com"
         }
     }
 })
 ```
 
-### **4️⃣ Delete Items**
+### **4️⃣ Eliminar Elementos**
 ```python
 response = await session.call_tool("delete_board_items", {
-    "field": "status_column",
-    "value": "Done"
+    "args": {
+        "field": "columna_status",
+        "value": "Completado"
+    }
 })
 ```
 
 ---
 
-## 🛠 **Debugging & Logging**
+## 🔄 **Recursos MCP Disponibles**
 
-The server generates logs in `monday_server.log`. You can enable detailed logging with:
-```bash
-export LOG_LEVEL=DEBUG
-python monday_server.py
+El servidor también expone recursos que pueden ser consumidos por clientes MCP:
+
+### **1️⃣ Esquema del Tablero**
+```python
+response = await session.read_resource("monday://board/schema")
+schema = json.loads(response.contents[0].text)
+```
+
+### **2️⃣ Información de Columnas**
+```python
+response = await session.read_resource("monday://board/columns/column_id")
+column_info = json.loads(response.contents[0].text)
+```
+
+### **3️⃣ Tipos de Columnas**
+```python
+response = await session.read_resource("monday://board/column_types")
+types = json.loads(response.contents[0].text)
+```
+
+### **4️⃣ Metadatos del Tablero**
+```python
+response = await session.read_resource("monday://board/metadata")
+metadata = json.loads(response.contents[0].text)
 ```
 
 ---
 
-## ❓ **FAQ**
+## 🖥️ **Cliente Interactivo**
 
-### ❓ What do I need to use this server?
-👉 Python 3.8+ and a **Monday.com** account with an API Key.
+El proyecto incluye un cliente de línea de comandos para interactuar con el servidor:
 
-### ❓ Can I use it in production?
-👉 Yes, but consider implementing authentication and access control.
+```bash
+python monday_client.py
+```
 
-### ❓ Can I add more tools?
-👉 Yes, you can add functions in `monday_tools.py` following the MCP structure.
+El cliente muestra un menú interactivo que permite:
+- Ver los datos del tablero
+- Buscar elementos por campo y valor
+- Crear nuevos elementos
+- Eliminar elementos existentes
 
 ---
 
-## 🏆 **Conclusion**
+## 🛠 **Depuración y Registro**
 
-This MCP server provides a **powerful and flexible** interface for interacting with **Monday.com**. It can be used by **applications, AI agents, automation tools, and custom scripts**.
+El servidor genera logs en `monday_server.log` y `monday_client.log`. Puedes cambiar el nivel de detalle:
+
+```bash
+# En monday_client.py o monday_config.py, modifica:
+logging.basicConfig(level=logging.DEBUG,  # Cambia a INFO, WARNING, ERROR según necesites
+                   ...)
+```
+
+---
+
+## ⚙️ **Mejoras Recientes**
+
+- **División de Manejadores**: Separación en módulos básicos y avanzados para mejor mantenimiento
+- **Validación Mejorada**: Nuevo sistema genérico de validación más flexible y potente
+- **Optimización de Código**: Refactorización para reducir duplicación y mejorar legibilidad
+- **Procesamiento de Fechas**: Mejor manejo de formatos de fecha para compatibilidad con Monday.com
+- **Caché Mejorado**: Sistema de caché más eficiente para reducir llamadas a la API
+
+---
+
+## 📋 **Guía de Resolución de Problemas**
+
+### Problemas comunes y soluciones:
+
+1. **Error de formato de fecha**:
+   - Asegúrate de usar formato ISO8601 (YYYY-MM-DD) para fechas
+   - Ejemplo: `2025-03-09` en lugar de `09/03/2025`
+
+2. **Columnas no encontradas**:
+   - Verifica que los IDs de columna sean correctos usando `monday://board/schema`
+   - Los IDs tienen formato como `text_mknk13m2` o `status_mknkkbmd`
+
+3. **Valores de columna rechazados**:
+   - Consulta las reglas de validación con `monday://board/columns/{column_id}`
+   - Para columnas de status, debe ser un valor exacto de las opciones disponibles
+
+4. **Problemas de conexión**:
+   - Asegúrate de tener API_KEY válida en .env
+   - Verifica conectividad a api.monday.com
+
+---
