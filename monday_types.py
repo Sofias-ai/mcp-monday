@@ -15,7 +15,6 @@ class ValueOperator(Enum):
     LOWER_THAN_OR_EQUALS = "lower_than_or_equals"
     BETWEEN = "between"
 
-# Añadidas nuevas enumeraciones para tipos específicos
 class FormulaType(Enum):
     NUMBER = "number"
     TEXT = "text"
@@ -66,7 +65,6 @@ class ColumnValue:
             }
         }
 
-# Nuevas clases para tipos específicos de columnas
 @dataclass
 class FormulaValue:
     formula: str
@@ -83,7 +81,7 @@ class ConnectBoardsValue:
 @dataclass
 class TimeTrackingValue:
     status: TimeTrackingStatus
-    duration: int  # en segundos
+    duration: int  
     started_at: Optional[str] = None
     ended_at: Optional[str] = None
 
@@ -114,24 +112,24 @@ class LastUpdatedValue:
 
 @dataclass
 class DependencyValue:
-    depends_on: List[str]  # item IDs
-    required_for: List[str]  # item IDs
+    depends_on: List[str]  
+    required_for: List[str]  
     blocking: bool = False
 
 @dataclass
 class ProgressValue:
-    progress: float  # 0-100
+    progress: float  
     auto_progress: bool = False
 
 @dataclass
 class VoteValue:
     votes_count: int
-    voters: List[str]  # user IDs
+    voters: List[str] 
     voted_by_me: bool = False
 
 @dataclass
 class ColorPickerValue:
-    color: str  # hex code
+    color: str  
     label: Optional[str] = None
 
 @dataclass
@@ -149,14 +147,10 @@ class ColumnDefinition:
     format: ColumnFormat
     handler_class: Optional[str] = None
 
-# Tipos compuestos
 JsonValue = Union[str, int, float, bool, Dict[str, Any], List[Any], None]
-
-# Tipo base para valores de columna
 ColumnValueType = Union[
     str, int, float, bool, Dict[str, Any],
     FormulaValue, ConnectBoardsValue, TimeTrackingValue,
     MirrorValue, ButtonValue, CreationLogValue,
     LastUpdatedValue, DependencyValue, ProgressValue,
-    VoteValue, ColorPickerValue
-]
+    VoteValue, ColorPickerValue]
