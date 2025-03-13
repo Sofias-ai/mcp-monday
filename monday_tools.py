@@ -1,199 +1,228 @@
-import json, httpx
-from typing import Dict, Any, Optional, Tuple
-from mcp.server.fastmcp import Context
-from pydantic import BaseModel
-from monday_config import mcp, board_schema, MONDAY_API_KEY, MONDAY_API_URL, MONDAY_BOARD_ID, logger
+from monday_config import mcp, monday_client, MONDAY_BOARD_ID, logger
 
-class SearchBoardItemsArguments(BaseModel): field: str; value: str
-class CreateBoardItemArguments(BaseModel): item_name: str; column_values: Dict[str, Any]
-class DeleteBoardItemsArguments(BaseModel): field: str; value: str
-
-async def call_monday_api(query: str, variables: Optional[Dict] = None) -> Tuple[bool, Dict]:
+@mcp.tool(name="get_board_data", description="Get all data from the Monday.com board including columns and items")
+async def get_board_data():
+    """Get all data from the Monday.com board"""
     try:
-        headers = {"Authorization": MONDAY_API_KEY, "Content-Type": "application/json"}
-        payload = {"query": query}
-        if variables: payload["variables"] = variables
-        async with httpx.AsyncClient() as client:
-            response = await client.post(MONDAY_API_URL, json=payload, headers=headers)
-        return (response.status_code == 200, response.json() if response.status_code == 200 
-                else {"error": f"API error: {response.status_code} - {response.text}"})
+        # Get board data using the Monday client directly
+        board_data = monday_client.boards.fetch_boards_by_id(MONDAY_BOARD_ID)
+        columns_data = monday_client.boards.fetch_columns_by_board_id(MONDAY_BOARD_ID)
+        items_data = monday_client.boards.fetch_items_by_board_id(MONDAY_BOARD_ID, limit=100)
+        
+        # Format response
+        result = {
+            "board": {
+                "id": MONDAY_BOARD_ID,
+                "name": board_data["data"]["boards"][0]["name"] if "data" in board_data else "",
+                "columns_count": len(columns_data["data"]["boards"][0]["columns"]) if "data" in columns_data else 0,
+                "items_count": len(items_data["data"]["boards"][0]["items_page"]["items"]) if "data" in items_data else 0
+            },
+            "columns": columns_data["data"]["boards"][0]["columns"] if "data" in columns_data else [],
+            "items": items_data["data"]["boards"][0]["items_page"]["items"] if "data" in items_data else []
+        }
+        
+        return result
     except Exception as e:
-        return False, {"error": f"Request error: {str(e)}"}
+        logger.error(f"Error getting board data: {str(e)}")
+        return {"success": False, "error": str(e)}
 
-@mcp.tool()
-async def get_board_data(ctx: Context) -> str:
-    if not MONDAY_API_KEY or not MONDAY_BOARD_ID:
-        return "Missing API_KEY or BOARD_ID in environment variables"
-    
-    query = """query { boards(ids: %s) { name, columns { id, title, type }, 
-             items_page(limit: 100) { items { id, name, column_values { id, text, type, value } } } } }""" % MONDAY_BOARD_ID
-    
-    success, data = await call_monday_api(query)
-    if not success: return json.dumps(data)
-    
-    if "data" in data and "boards" in data["data"]:
-        board = data["data"]["boards"][0]
-        columns_dict = {col["id"]: col["title"] for col in board["columns"]}
-        for item in board["items_page"]["items"]:
-            for col_value in item["column_values"]:
-                col_value["title"] = columns_dict.get(col_value["id"], col_value["id"])
-    
-    return json.dumps(data)
+# Helper function to get column mapping
+async def get_column_mapping():
+    """Get a mapping from column names to IDs"""
+    columns_data = monday_client.boards.fetch_columns_by_board_id(MONDAY_BOARD_ID)
+    columns_map = {}
+    if "data" in columns_data and "boards" in columns_data["data"]:
+        for col in columns_data["data"]["boards"][0]["columns"]:
+            columns_map[col["title"].lower()] = col["id"]
+            columns_map[col["id"]] = col["id"]  # Also allow direct use of IDs
+    return columns_map
 
-@mcp.tool()
-async def search_board_items(ctx: Context, args: SearchBoardItemsArguments) -> str:
+@mcp.tool(name="search_board_items", description="Search for items in a Monday.com board by field and value")
+async def search_board_items(field: str, value: str):
+    """Search for items in a Monday.com board by field and value"""
     try:
-        schema_data = json.loads(await get_board_data(ctx))
-        if "data" not in schema_data or "boards" not in schema_data["data"]:
-            return json.dumps({"success": False, "message": "Invalid schema format"})
+        # Get column mapping
+        columns_map = await get_column_mapping()
         
-        board = schema_data["data"]["boards"][0]
-        columns = board.get("columns", [])
-        column_map = {col['id']: col['title'] for col in columns}
-        reverse_map = {col['title'].lower(): col['id'] for col in columns}
-        search_field = reverse_map.get(args.field.lower(), args.field)
+        # Determine column ID
+        column_id = columns_map.get(field.lower(), field)
         
-        query = """query { boards(ids: %s) { items_page(query_params: { rules: [{ column_id: "%s", 
-                compare_value: "%s", operator: contains_terms }] }) { items { id, name, column_values 
-                { id, text, type, value } } } } }""" % (MONDAY_BOARD_ID, search_field, args.value)
+        # Search using the Monday client
+        items_data = monday_client.items.fetch_items_by_column_value(
+            board_id=MONDAY_BOARD_ID,
+            column_id=column_id,
+            value=value
+        )
         
-        success, result = await call_monday_api(query)
-        if not success: 
-            return json.dumps({"success": False, "message": result.get("error", "API Error")})
-        
+        # Process results
         items = []
-        if "data" in result and "boards" in result["data"]:
-            board_items = result["data"]["boards"][0].get("items_page", {}).get("items", [])
-            for item in board_items:
-                formatted = {"id": item["id"], "name": item["name"], "column_values": []}
-                for col_value in item["column_values"]:
-                    if col_value.get("text"):
-                        formatted["column_values"].append({
-                            "title": column_map.get(col_value["id"], col_value["id"]), 
-                            "value": col_value["text"]
+        if "data" in items_data and "items_page_by_column_values" in items_data["data"]:
+            # Get column titles for better readability
+            columns_data = monday_client.boards.fetch_columns_by_board_id(MONDAY_BOARD_ID)
+            columns_dict = {}
+            if "data" in columns_data and "boards" in columns_data["data"]:
+                for col in columns_data["data"]["boards"][0]["columns"]:
+                    columns_dict[col["id"]] = col["title"]
+            
+            # Format each item
+            for item in items_data["data"]["items_page_by_column_values"]["items"]:
+                formatted_item = {
+                    "id": item["id"],
+                    "name": item["name"],
+                    "column_values": []
+                }
+                
+                # Add column values with proper titles
+                for cv in item["column_values"]:
+                    if cv.get("text"):
+                        title = columns_dict.get(cv["id"], cv["id"])
+                        formatted_item["column_values"].append({
+                            "column_id": cv["id"],
+                            "title": title,
+                            "value": cv["text"]
                         })
-                items.append(formatted)
+                
+                items.append(formatted_item)
         
-        return json.dumps({"success": True, "matches_found": len(items), "items": items}, indent=2)
+        return {
+            "success": True,
+            "matches_found": len(items),
+            "items": items
+        }
     except Exception as e:
-        return json.dumps({"success": False, "message": f"Error: {str(e)}"}, indent=2)
+        logger.error(f"Error searching items: {str(e)}")
+        return {"success": False, "error": str(e)}
 
-@mcp.tool()
-async def delete_board_items(ctx: Context, args: DeleteBoardItemsArguments) -> str:
+@mcp.tool(name="delete_board_items", description="Delete items from a Monday.com board by field and value match")
+async def delete_board_items(field: str, value: str):
+    """Delete items from a Monday.com board by field and value match"""
     try:
-        search_data = json.loads(await search_board_items(ctx, SearchBoardItemsArguments(field=args.field, value=args.value)))
-        if not search_data["success"] or search_data["matches_found"] == 0:
-            return json.dumps({"success": False, "message": "No items found", "deleted_count": 0}, indent=2)
-
-        item_ids = [item["id"] for item in search_data["items"]]
-        mutation = """mutation deleteItem($itemId: ID!) { delete_item (item_id: $itemId) { id } }"""
-        deleted_items, errors = [], []
+        # First search for matching items
+        search_result = await search_board_items(field, value)
         
-        for item_id in item_ids:
-            success, result = await call_monday_api(mutation, {"itemId": item_id})
-            if success and "data" in result and "delete_item" in result["data"]:
-                deleted_items.append(next(item for item in search_data["items"] if item["id"] == item_id))
-            else:
-                errors.append(f"Error deleting item {item_id}: {result.get('error') or result.get('errors')}")
+        # Check if any items were found
+        if not search_result["success"] or search_result["matches_found"] == 0:
+            return {
+                "success": False,
+                "message": "No items found to delete",
+                "deleted_count": 0
+            }
         
-        return json.dumps({
+        # Delete each item found
+        deleted_items = []
+        errors = []
+        
+        for item in search_result["items"]:
+            try:
+                # Use the Monday client to delete the item
+                result = monday_client.items.delete_item_by_id(item["id"])
+                if "data" in result and "delete_item" in result["data"]:
+                    deleted_items.append(item)
+                else:
+                    errors.append(f"Error deleting item {item['id']}: Unexpected response")
+            except Exception as e:
+                errors.append(f"Error deleting item {item['id']}: {str(e)}")
+        
+        return {
             "success": len(deleted_items) > 0,
-            "message": f"Deleted {len(deleted_items)} of {len(item_ids)} items",
+            "message": f"Deleted {len(deleted_items)} of {len(search_result['items'])} items",
             "deleted_count": len(deleted_items),
             "deleted_items": deleted_items,
             "errors": errors if errors else None
-        }, indent=2)
+        }
     except Exception as e:
-        return json.dumps({"success": False, "message": f"Error: {str(e)}", "deleted_count": 0}, indent=2)
+        logger.error(f"Error deleting items: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "deleted_count": 0
+        }
 
-@mcp.tool()
-async def create_board_item(ctx: Context, args: CreateBoardItemArguments) -> str:
-    request_id = id(ctx)
-    logger.info(f"[{request_id}] Creating item: {args.item_name} with values: {json.dumps(args.column_values)}")
-    
+@mcp.tool(name="create_board_item", description="Create a new item in the Monday.com board")
+async def create_board_item(item_name: str, column_values: dict, group_id: str = None):
+    """Create a new item in the Monday.com board"""
     try:
-        column_values = {}
-        for column_id, value in args.column_values.items():
-            if not value: continue
-            column_info = board_schema.columns_config.get(column_id)
-            if not column_info: 
-                logger.warning(f"[{request_id}] Column {column_id} not found in schema")
-                continue
-            
-            column_type = column_info["type"]
-            settings = column_info.get("settings", {})
-            logger.debug(f"[{request_id}] Processing column {column_id} ({column_type}) with value: {value}")
-            
-            try:
-                if column_type == "location":
-                    try:
-                        from geopy.geocoders import Nominatim
-                        location = Nominatim(user_agent="monday_app").geocode(value)
-                        column_values[column_id] = {"lat": str(getattr(location, "latitude", "")), 
-                                                   "lng": str(getattr(location, "longitude", "")), 
-                                                   "address": str(value)}
-                        logger.debug(f"[{request_id}] Geocoded location: {json.dumps(column_values[column_id])}")
-                    except Exception as e:
-                        logger.error(f"[{request_id}] Error geocoding: {str(e)}")
-                        column_values[column_id] = {"lat": "", "lng": "", "address": str(value)}
-                elif column_type == "status":
-
-                    label_index = None
-                    for idx, lbl in settings.get("labels", {}).items():
-                        if str(lbl).lower() == str(value).lower():
-                            label_index = idx
-                            break
-                    column_values[column_id] = {"index": str(label_index) if label_index else ""}
-                    logger.debug(f"[{request_id}] Status value mapped: {value} -> {column_values[column_id]}")
-                elif column_type == "date":
-
-                    column_values[column_id] = {"date": str(value)}
-                    logger.debug(f"[{request_id}] Date formatted: {column_values[column_id]}")
-                elif column_type == "email":
-                    column_values[column_id] = {"email": str(value), "text": str(value)}
-                    logger.debug(f"[{request_id}] Email formatted: {column_values[column_id]}")
-                else:
-
-                    column_values[column_id] = str(value)
-                    logger.debug(f"[{request_id}] Simple value assigned: {column_id} = {value}")
-            except Exception as col_err:
-                logger.error(f"[{request_id}] Error formatting column {column_id}: {str(col_err)}")
-                continue
+        # Get default group if none is provided
+        if not group_id:
+            groups_data = monday_client.groups.get_groups_by_board([MONDAY_BOARD_ID])
+            if "data" in groups_data and "boards" in groups_data["data"]:
+                groups = groups_data["data"]["boards"][0].get("groups", [])
+                if groups:
+                    group_id = groups[0]["id"]
         
-        column_values_json = json.dumps(column_values)
-        logger.debug(f"[{request_id}] Final column_values JSON: {column_values_json}")
-        mutation = """mutation create_item($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
-            create_item (board_id: $boardId, item_name: $itemName, column_values: $columnValues) {
-                id name column_values { id text value type }
+        # Check if we have a valid group
+        if not group_id:
+            return {
+                "success": False,
+                "message": "No group ID provided and no default group found"
             }
-        }"""
         
-        success, result = await call_monday_api(mutation, {
-            "boardId": MONDAY_BOARD_ID,
-            "itemName": args.item_name,
-            "columnValues": column_values_json  
-        })
+        # Use the Monday client to create the item
+        result = monday_client.items.create_item(
+            board_id=int(MONDAY_BOARD_ID),
+            group_id=group_id,
+            item_name=item_name,
+            column_values=column_values
+        )
         
-        logger.debug(f"[{request_id}] API response: {json.dumps(result)}")
-        
-        if success and "data" in result and "create_item" in result["data"] and result["data"]["create_item"]:
-            logger.info(f"[{request_id}] Item created successfully with ID: {result['data']['create_item']['id']}")
-            return json.dumps({
-                "success": True, 
+        # Process result
+        if "data" in result and "create_item" in result["data"] and result["data"]["create_item"]:
+            created_item = result["data"]["create_item"]
+            return {
+                "success": True,
                 "message": "Item created successfully",
-                "item": result["data"]["create_item"]
-            }, indent=2)
+                "item": {
+                    "id": created_item["id"],
+                    "name": item_name,
+                    "board_id": MONDAY_BOARD_ID,
+                    "group_id": group_id
+                }
+            }
         else:
-            error_msg = f"Create error: {result.get('errors', '')}"
-            if "data" in result and result["data"].get("create_item") is None:
-                error_msg = "Failed to create item. Possibly invalid column values or permissions."
-            logger.error(f"[{request_id}] {error_msg}")
-            return json.dumps({
-                "success": False, 
-                "message": error_msg,
-                "raw_response": result
-            }, indent=2)
+            return {
+                "success": False,
+                "message": "Failed to create item",
+                "response": result
+            }
     except Exception as e:
-        error_msg = f"Error during creation: {str(e)}"
-        logger.error(f"[{request_id}] {error_msg}", exc_info=True)
-        return json.dumps({"success": False, "message": error_msg}, indent=2)
+        logger.error(f"Error creating item: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
+
+@mcp.tool(name="update_board_item", description="Update an existing item in the Monday.com board")
+async def update_board_item(item_id: str, column_values: dict):
+    """Update an existing item in the Monday.com board"""
+    try:
+        # Use the Monday client to update the item
+        result = monday_client.items.change_multiple_column_values(
+            board_id=int(MONDAY_BOARD_ID),
+            item_id=item_id, 
+            column_values=column_values
+        )
+        
+        # Process result
+        if "data" in result and "change_multiple_column_values" in result["data"]:
+            updated_item = result["data"]["change_multiple_column_values"]
+            return {
+                "success": True,
+                "message": "Item updated successfully",
+                "item": {
+                    "id": updated_item["id"],
+                    "name": updated_item["name"],
+                    "board_id": MONDAY_BOARD_ID
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to update item",
+                "response": result
+            }
+    except Exception as e:
+        logger.error(f"Error updating item: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
