@@ -1,125 +1,160 @@
 # Monday.com MCP Integration
 
-Una integración entre Monday.com y el protocolo MCP (Model Control Protocol) que permite gestionar y consultar tableros de Monday.com a través de una interfaz estandarizada.
+An integration between Monday.com and the MCP (Model Control Protocol) that allows managing and querying Monday.com boards through a standardized interface.
 
-## 📋 Requisitos
+## 📋 Requirements
 
 - Python 3.9+
-- Una cuenta en Monday.com con una clave API
-- Un tablero existente en Monday.com
+- A Monday.com account with an API key
+- An existing board in Monday.com
 
-## 🔧 Instalación
+## 🔧 Installation
 
-1. Clona este repositorio o descarga los archivos
-2. Crea un entorno virtual:
+1. Clone this repository or download the files
+2. Create a virtual environment:
    ```bash
    python -m venv mcpMondayVenv
    ```
-3. Activa el entorno virtual:
+3. Activate the virtual environment:
    ```bash
-   # En Windows
+   # On Windows
    mcpMondayVenv\Scripts\activate
    
-   # En Unix/macOS
+   # On Unix/macOS
    source mcpMondayVenv/bin/activate
    ```
-4. Ejecuta el script de configuración o instala las dependencias manualmente:
+4. Run the setup script or install dependencies manually:
    ```bash
-   # Opción 1: Usar el script de configuración
+   # Option 1: Use the setup script
    python setup.py
    
-   # Opción 2: Instalar dependencias manualmente
+   # Option 2: Install dependencies manually
    pip install -r requirements.txt
    ```
 
-5. Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+5. Create a `.env` file in the project root with the following content:
    ```
-   MONDAY_API_KEY=tu_api_key_de_monday
-   MONDAY_BOARD_ID=id_de_tu_tablero
+   MONDAY_API_KEY=your_monday_api_key
+   MONDAY_BOARD_ID=your_board_id
    ```
    
-   Puedes obtener tu API key en Monday.com → Perfil → Developer → API
+   You can get your API key in Monday.com → Profile → Developer → API
 
-## ⚙️ Estructura del proyecto
+## ⚙️ Project Structure
 
-- `monday_config.py`: Configuración y inicialización de MCP y Monday.com
-- `monday_server.py`: Servidor MCP para Monday.com
-- `monday_client.py`: Cliente interactivo para interactuar con el servidor
-- `monday_tools.py`: Herramientas MCP para operar con Monday.com
-- `monday_resources.py`: Recursos MCP para consultar datos de Monday.com
+- `monday_config.py`: Configuration and initialization of MCP and Monday.com
+- `monday_server.py`: MCP server for Monday.com
+- `monday_client.py`: Interactive client to interact with the server
+- `monday_tools.py`: MCP tools to operate with Monday.com
+- `monday_resources.py`: MCP resources to query Monday.com data
 
-## 🚀 Uso
+## 🚀 Usage
 
-### Iniciar el servidor
+### Start the server
 
 ```bash
 python monday_server.py
 ```
 
-### Iniciar el cliente
+### Start the client
 
-En otra terminal:
+In another terminal:
 
 ```bash
 python monday_client.py
 ```
 
-El cliente proporciona una interfaz interactiva para utilizar las herramientas disponibles.
+The client provides an interactive interface to use the available tools.
 
-## 🛠️ Herramientas disponibles
+## 🛠️ Available Tools
 
-El sistema ofrece las siguientes herramientas MCP:
+The system offers the following MCP tools:
 
-1. **get_board_data**: Obtiene todos los datos del tablero, incluyendo columnas e ítems
+1. **get_board_data**: Gets all data from the board, including columns and items
    
-2. **search_board_items**: Busca ítems en el tablero por campo y valor
-   - Parámetros: `field` (nombre/ID del campo), `value` (valor a buscar)
+2. **search_board_items**: Searches for items in the board by field and value
+   - Parameters: `field` (field name/ID), `value` (value to search for)
    
-3. **delete_board_items**: Elimina ítems del tablero que coincidan con un campo y valor
-   - Parámetros: `field` (nombre/ID del campo), `value` (valor a buscar)
+3. **delete_board_items**: Deletes items from the board that match a field and value
+   - Parameters: `field` (field name/ID), `value` (value to search for)
    
-4. **create_board_item**: Crea un nuevo ítem en el tablero
-   - Parámetros: `item_name` (nombre del ítem), `column_values` (valores para columnas), `group_id` (opcional)
+4. **create_board_item**: Creates a new item in the board
+   - Parameters: `item_name` (name of the item), `column_values` (values for columns), `group_id` (optional)
    
-5. **update_board_item**: Actualiza un ítem existente
-   - Parámetros: `item_id` (ID del ítem), `column_values` (valores a actualizar)
+5. **update_board_item**: Updates an existing item
+   - Parameters: `item_id` (item ID), `column_values` (values to update)
 
-## 📚 Recursos disponibles
+## 📚 Available Resources
 
-- `monday://board/schema`: Esquema completo del tablero
-- `monday://board/columns/{column_id}`: Información de una columna específica
-- `monday://board/items`: Todos los ítems del tablero
-- `monday://board/item/{item_id}`: Detalles de un ítem específico
+- `monday://board/schema`: Complete board schema
+- `monday://board/columns/{column_id}`: Information about a specific column
+- `monday://board/items`: All items in the board
+- `monday://board/item/{item_id}`: Details of a specific item
 
-## ❓ Solución de problemas
+## ❓ Troubleshooting
 
 ### Error: ModuleNotFoundError: No module named 'requests'
 
-Asegúrate de tener todas las dependencias instaladas:
+Make sure you have all dependencies installed:
 
 ```bash
 pip install requests monday python-dotenv mcp
 ```
 
-O instala todas las dependencias desde el archivo de requisitos:
+Or install all dependencies from the requirements file:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Error de conexión al servidor
+### Server connection error
 
-Verifica que:
-- El servidor esté en ejecución
-- Las variables de entorno estén correctamente configuradas
-- La API key de Monday.com tenga los permisos necesarios
+Verify that:
+- The server is running
+- Environment variables are correctly configured
+- Your Monday.com API key has the necessary permissions
 
-## 📝 Desarrollo
+## 📝 Development
 
-Este proyecto utiliza:
-- **MCP** para la interfaz del servidor y cliente
-- **Monday Python SDK** para interactuar con la API de Monday.com
-- **Python-dotenv** para la gestión de configuración
-- **Requests** para comunicación HTTP
+This project uses:
+- **MCP** for server and client interface
+- **Monday Python SDK** to interact with the Monday.com API
+- **Python-dotenv** for configuration management
+- **Requests** for HTTP communication
 
-Para extender o modificar el proyecto, revisa los archivos principales y su estructura modular.
+To extend or modify the project, review the main files and their modular structure.
+
+## 🏢 About
+
+This server has been developed by [Sofias Tech](https://github.com/Sofias-ai), a company specializing in integration and automation solutions for productivity platforms.
+
+This project represents one of the first open-source codes published by our company. Visit our [GitHub repository](https://github.com/Sofias-ai) to discover more tools and solutions.
+
+## 📄 License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT) - see the LICENSE file for details.
+
+```
+MIT License
+
+Copyright (c) 2023 Sofias Tech
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+````
