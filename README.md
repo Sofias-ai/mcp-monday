@@ -44,7 +44,6 @@ An integration between Monday.com and the MCP (Model Control Protocol) that allo
 
 - `monday_config.py`: Configuration and initialization of MCP and Monday.com
 - `monday_server.py`: MCP server for Monday.com
-- `monday_client.py`: Interactive client to interact with the server
 - `monday_tools.py`: MCP tools to operate with Monday.com
 - `monday_resources.py`: MCP resources to query Monday.com data
 
@@ -55,16 +54,6 @@ An integration between Monday.com and the MCP (Model Control Protocol) that allo
 ```bash
 python monday_server.py
 ```
-
-### Start the client
-
-In another terminal:
-
-```bash
-python monday_client.py
-```
-
-The client provides an interactive interface to use the available tools.
 
 ## 🛠️ Available Tools
 
