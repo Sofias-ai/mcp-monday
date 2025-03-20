@@ -38,7 +38,7 @@ An integration between Monday.com and the MCP (Model Control Protocol) that allo
    MONDAY_BOARD_ID=your_board_id
    ```
    
-   You can get your API key in Monday.com → Profile → Developer → API
+   You can get your API key in Monday.com → Profile → Developer → API → API v2 Token
 
 ## ⚙️ Project Structure
 
@@ -51,34 +51,71 @@ An integration between Monday.com and the MCP (Model Control Protocol) that allo
 
 ### Start the server
 
+You can run the server using different transport methods:
+
 ```bash
+# Default (stdio)
 python monday_server.py
+
+# Explicitly specify transport
+python monday_server.py --transport stdio
+python monday_server.py --transport sse
 ```
+
+## ✨ Features
+
+- **Optimized GraphQL Queries**: Direct GraphQL queries for better performance
+- **Smart Caching System**: 5-minute time-based cache to minimize API calls
+- **Fallback Mechanisms**: Graceful degradation when GraphQL queries fail
+- **Comprehensive Error Handling**: Consistent error responses across all functions
+- **Windows Compatibility**: Built-in handling of Windows-specific encoding issues
 
 ## 🛠️ Available Tools
 
-The system offers the following MCP tools:
+The MCP integration offers these tools for interacting with Monday.com:
 
-1. **get_board_data**: Gets all data from the board, including columns and items
-   
-2. **search_board_items**: Searches for items in the board by field and value
+1. **get_board_schema** - Get the structure of the board (columns, groups, etc.) without items
+   - Returns detailed information about columns, including dropdown options
+
+2. **get_board_items** - Get only the items from the board
+   - Retrieves all items with their column values efficiently
+
+3. **get_board_data** - Combined schema and items in one call
+   - Use with caution on large boards as it retrieves all data
+
+4. **search_board_items** - Search for items by field and value
    - Parameters: `field` (field name/ID), `value` (value to search for)
-   
-3. **delete_board_items**: Deletes items from the board that match a field and value
+   - Supports searching by column title or ID
+
+5. **delete_board_items** - Delete items matching a field and value
    - Parameters: `field` (field name/ID), `value` (value to search for)
-   
-4. **create_board_item**: Creates a new item in the board
+   - Returns detailed information about deleted items and any errors
+
+6. **create_board_item** - Create a new item in the board
    - Parameters: `item_name` (name of the item), `column_values` (values for columns), `group_id` (optional)
-   
-5. **update_board_item**: Updates an existing item
+   - Automatically uses first group if group_id not provided
+
+7. **update_board_item** - Update an existing item
    - Parameters: `item_id` (item ID), `column_values` (values to update)
 
 ## 📚 Available Resources
 
-- `monday://board/schema`: Complete board schema
-- `monday://board/columns/{column_id}`: Information about a specific column
-- `monday://board/items`: All items in the board
-- `monday://board/item/{item_id}`: Details of a specific item
+The server provides these resources that can be accessed through the MCP protocol:
+
+- `monday://board/schema` - Complete board schema
+- `monday://board/columns` - All columns in the board 
+- `monday://board/columns/{column_id}` - Information about a specific column
+- `monday://board/items` - All items in the board
+- `monday://board/item/{item_id}` - Details of a specific item
+
+## 🏎️ Performance Optimizations
+
+This integration includes several performance-enhancing features:
+
+1. **Resource Caching**: All resources are cached for 5 minutes to reduce API calls
+2. **GraphQL-First Approach**: Uses optimized GraphQL queries for better performance
+3. **Fallback Mechanisms**: Automatically falls back to standard API when GraphQL fails
+4. **Error Resilience**: Continues operation even when parts of the data can't be retrieved
 
 ## ❓ Troubleshooting
 
@@ -99,9 +136,14 @@ pip install -r requirements.txt
 ### Server connection error
 
 Verify that:
-- The server is running
-- Environment variables are correctly configured
+- The server is running (check the logs in monday_server.log)
+- Environment variables are correctly configured in .env
 - Your Monday.com API key has the necessary permissions
+- The board ID exists and is accessible with your API key
+
+### Windows encoding issues
+
+If you encounter encoding problems on Windows, the server automatically configures binary mode and UTF-8 encoding for stdin/stdout. If problems persist, check your terminal's encoding settings.
 
 ## 📝 Development
 
@@ -109,9 +151,14 @@ This project uses:
 - **MCP** for server and client interface
 - **Monday Python SDK** to interact with the Monday.com API
 - **Python-dotenv** for configuration management
-- **Requests** for HTTP communication
+- **Custom GraphQL queries** for optimized data retrieval
 
-To extend or modify the project, review the main files and their modular structure.
+### Extending the integration
+
+To add new capabilities:
+1. Add GraphQL queries in `monday_resources.py` if needed
+2. Implement new tool functions in `monday_tools.py`
+3. Create resource endpoints in `monday_resources.py` if necessary
 
 ## 🏢 About
 
@@ -146,4 +193,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
-````

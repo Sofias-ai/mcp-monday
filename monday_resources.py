@@ -1,156 +1,169 @@
 import json
 from datetime import datetime, timedelta
+from functools import wraps
 from monday_config import mcp, monday_client, MONDAY_BOARD_ID, logger
 
-# Simple cache system
-CACHE_DURATION = timedelta(minutes=5)
-cache = {}
-cache_timestamps = {}
+# Simplified cache system
+CACHE = {"data": {}, "timestamp": {}, "duration": timedelta(minutes=5)}
 
-def is_cache_valid(key):
-    """Check if cache for a specific resource is still valid"""
-    return (key in cache_timestamps and
-            datetime.now() - cache_timestamps[key] < CACHE_DURATION)
+def cached(key_template):
+    """Compact decorator for resource caching"""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Generate key with dynamic parameters
+            key = key_template.format(*args, **kwargs, board=MONDAY_BOARD_ID)
+            
+            # Check cache
+            if (key in CACHE["timestamp"] and 
+                datetime.now() - CACHE["timestamp"][key] < CACHE["duration"]):
+                return json.dumps(CACHE["data"][key])
+            
+            # Execute function and store in cache
+            try:
+                result = await func(*args, **kwargs)
+                CACHE["data"][key] = result
+                CACHE["timestamp"][key] = datetime.now()
+                return json.dumps(result)
+            except Exception as e:
+                logger.error(f"Error in {func.__name__}: {str(e)}")
+                return json.dumps({"error": str(e)})
+        return wrapper
+    return decorator
 
-def update_cache(key, data):
-    """Update the cache with new data"""
-    cache[key] = data
-    cache_timestamps[key] = datetime.now()
-    return data
+# Compact GraphQL queries
+QUERY = {
+    "schema": """query {{ 
+        boards(ids: {board_id}) {{ 
+            id name board_kind permissions 
+            owner {{ id name }}
+            groups {{ id title color position }}
+            columns {{ id title type settings_str archived width description }}
+            tags {{ id name color }}
+        }}
+    }}""",
+    
+    "items": """query {{ 
+        boards(ids: {board_id}) {{ 
+            items_page(limit: {limit}) {{ items {{ 
+                id name column_values {{ id title text value }} group {{ id title }}
+            }} }}
+        }}
+    }}""",
+    
+    "item": """query {{ 
+        items(ids: {item_id}) {{ 
+            id name column_values {{ id title text value }} group {{ id title }}
+        }}
+    }}"""
+}
 
+# Optimized data retrieval functions
+async def fetch_data(query_key, **params):
+    """Central function for executing GraphQL queries with parameters"""
+    try:
+        query = QUERY[query_key].format(**params)
+        return monday_client.custom._query(query)
+    except Exception as e:
+        logger.error(f"Error in query {query_key}: {e}")
+        return None
+
+async def get_schema_data():
+    """Get board schema"""
+    response = await fetch_data("schema", board_id=MONDAY_BOARD_ID)
+    
+    if not response or "data" not in response or not response["data"].get("boards"):
+        return {"board_info": {"id": MONDAY_BOARD_ID}, "columns": [], "groups": []}
+    
+    board = response["data"]["boards"][0]
+    return {
+        "board_info": {
+            "id": str(MONDAY_BOARD_ID),
+            "name": board.get("name", ""),
+            "board_kind": board.get("board_kind", ""),
+            "permissions": board.get("permissions", "")
+        },
+        "columns": board.get("columns", []),
+        "groups": board.get("groups", []),
+        "tags": board.get("tags", []),
+        "owner": board.get("owner", {})
+    }
+
+async def get_items_data(limit=100):
+    """Get board items"""
+    try:
+        response = await fetch_data("items", board_id=MONDAY_BOARD_ID, limit=limit)
+        
+        if response and "data" in response and "boards" in response["data"]:
+            items = response["data"]["boards"][0]["items_page"]["items"]
+            return {"count": len(items), "items": items}
+        
+        # Fallback method if GraphQL fails
+        return await fallback_get_items()
+    except Exception:
+        return await fallback_get_items()
+
+async def fallback_get_items():
+    """Fallback method using standard API"""
+    data = monday_client.boards.fetch_items_by_board_id(MONDAY_BOARD_ID, limit=100)
+    items = data.get("data", {}).get("boards", [{}])[0].get("items_page", {}).get("items", [])
+    return {"count": len(items), "items": items}
+
+async def get_item_data(item_id):
+    """Get a specific item"""
+    response = await fetch_data("item", item_id=item_id)
+    
+    if response and "data" in response and response["data"].get("items"):
+        return response["data"]["items"][0]
+    
+    # Fallback method
+    data = monday_client.items.fetch_items_by_id([item_id])
+    return data.get("data", {}).get("items", [None])[0]
+
+# Optimized MCP resources
 @mcp.resource("monday://board/schema")
+@cached("schema:{board}")
 async def get_board_schema():
-    """Get the complete board schema"""
-    cache_key = f"schema:{MONDAY_BOARD_ID}"
-    
-    try:
-        # Check cache first
-        if is_cache_valid(cache_key):
-            return json.dumps(cache[cache_key])
-        
-        # Fetch fresh data using Monday client
-        board_data = monday_client.boards.fetch_boards_by_id(MONDAY_BOARD_ID)
-        columns_data = monday_client.boards.fetch_columns_by_board_id(MONDAY_BOARD_ID)
-        groups_data = monday_client.groups.get_groups_by_board([MONDAY_BOARD_ID])
-        
-        # Build response with all relevant information
-        result = {
-            "board_info": {
-                "id": MONDAY_BOARD_ID,
-                "name": board_data["data"]["boards"][0]["name"],
-                "board_kind": board_data["data"]["boards"][0]["board_kind"],
-                "permissions": board_data["data"]["boards"][0]["permissions"],
-            },
-            "columns": columns_data["data"]["boards"][0]["columns"],
-            "groups": groups_data["data"]["boards"][0]["groups"],
-            "tags": board_data["data"]["boards"][0].get("tags", []),
-            "owner": board_data["data"]["boards"][0].get("owner", {})
-        }
-        
-        # Update cache and return result
-        return json.dumps(update_cache(cache_key, result))
-    
-    except Exception as e:
-        logger.error(f"Error retrieving board schema: {str(e)}")
-        return json.dumps({"error": str(e)})
-
-@mcp.resource("monday://board/columns/{column_id}")
-async def get_column_info(column_id: str):
-    """Get detailed information about a specific column"""
-    cache_key = f"column:{column_id}"
-    
-    try:
-        # Check cache first
-        if is_cache_valid(cache_key):
-            return json.dumps(cache[cache_key])
-        
-        # Get column information
-        columns_data = monday_client.boards.fetch_columns_by_board_id(MONDAY_BOARD_ID)
-        
-        if "data" not in columns_data or "boards" not in columns_data["data"]:
-            return json.dumps({"error": "Failed to get columns data"})
-            
-        columns = columns_data["data"]["boards"][0]["columns"]
-        column = next((col for col in columns if col["id"] == column_id), None)
-        
-        if not column:
-            return json.dumps({"error": f"Column {column_id} not found"})
-            
-        # Format column information
-        settings = json.loads(column["settings_str"]) if "settings_str" in column else {}
-        
-        response = {
-            "id": column["id"],
-            "title": column["title"],
-            "type": column["type"],
-            "settings": settings,
-            "width": column.get("width"),
-            "archived": column.get("archived", False),
-            "description": column.get("description", "")
-        }
-        
-        # Update cache and return result
-        return json.dumps(update_cache(cache_key, response))
-    
-    except Exception as e:
-        logger.error(f"Error retrieving column info: {str(e)}")
-        return json.dumps({"error": str(e)})
+    """Monday board schema"""
+    return await get_schema_data()
 
 @mcp.resource("monday://board/items")
+@cached("items:{board}")
 async def get_board_items():
-    """Get all items from the board"""
-    cache_key = f"items:{MONDAY_BOARD_ID}"
-    
-    try:
-        # Check cache first
-        if is_cache_valid(cache_key):
-            return json.dumps(cache[cache_key])
-            
-        # Get board items
-        items_data = monday_client.boards.fetch_items_by_board_id(MONDAY_BOARD_ID, limit=100)
-        
-        if "data" not in items_data or "boards" not in items_data["data"]:
-            return json.dumps({"error": "Failed to get items data"})
-        
-        # Build response
-        items = items_data["data"]["boards"][0]["items_page"]["items"]
-        response = {
-            "count": len(items),
-            "items": items
-        }
-        
-        # Update cache and return result
-        return json.dumps(update_cache(cache_key, response))
-    
-    except Exception as e:
-        logger.error(f"Error retrieving board items: {str(e)}")
-        return json.dumps({"error": str(e)})
+    """Board items"""
+    return await get_items_data()
 
 @mcp.resource("monday://board/item/{item_id}")
-async def get_item(item_id: str):
-    """Get detailed information about a specific item"""
-    cache_key = f"item:{item_id}"
+@cached("item:{item_id}")
+async def get_item(item_id):
+    """Detailed information about a specific item"""
+    item = await get_item_data(item_id)
+    return item if item else {"error": f"Item {item_id} not found"}
+
+@mcp.resource("monday://board/columns")
+@cached("columns:{board}")
+async def get_all_columns():
+    """All columns in the board"""
+    schema = await get_schema_data()
+    return schema["columns"]
+
+@mcp.resource("monday://board/columns/{column_id}")
+@cached("column:{column_id}")
+async def get_column_info(column_id):
+    """Detailed information about a specific column"""
+    schema = await get_schema_data()
+    column = next((col for col in schema["columns"] if col["id"] == column_id), None)
     
-    try:
-        # Check cache first
-        if is_cache_valid(cache_key):
-            return json.dumps(cache[cache_key])
-            
-        # Get item details
-        item_data = monday_client.items.fetch_items_by_id([item_id])
-        
-        if "data" not in item_data or "items" not in item_data["data"]:
-            return json.dumps({"error": f"Item {item_id} not found"})
-        
-        if not item_data["data"]["items"]:
-            return json.dumps({"error": f"Item {item_id} not found"})
-        
-        # Return the item with its column values
-        item = item_data["data"]["items"][0]
-        
-        # Update cache and return result
-        return json.dumps(update_cache(cache_key, item))
+    if not column:
+        return {"error": f"Column {column_id} not found"}
     
-    except Exception as e:
-        logger.error(f"Error retrieving item details: {str(e)}")
-        return json.dumps({"error": str(e)})
+    settings = json.loads(column["settings_str"]) if "settings_str" in column else {}
+    return {
+        "id": column["id"], 
+        "title": column["title"], 
+        "type": column["type"],
+        "settings": settings, 
+        "width": column.get("width"),
+        "archived": column.get("archived", False),
+        "description": column.get("description", "")
+    }
