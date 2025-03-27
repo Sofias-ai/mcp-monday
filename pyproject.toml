@@ -1,0 +1,21 @@
+[project]
+name = "mcp-monday"
+version = "0.1.0"
+description = "An integration between Monday.com and the MCP (Model Control Protocol)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "monday>=2.0.1",
+    "mcp>=0.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["monday_config", "monday_resources", "monday_server", "monday_tools"]
+
+[project.scripts]
+mcp-monday = "monday_server:main"
