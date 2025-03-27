@@ -15,7 +15,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["monday_config", "monday_resources", "monday_server", "monday_tools"]
+packages = ["src/mcp_monday"]
 
 [project.scripts]
-mcp-monday = "monday_server:main"
+mcp-monday = "mcp_monday:main"

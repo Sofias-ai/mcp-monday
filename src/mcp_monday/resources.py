@@ -1,7 +1,11 @@
+"""
+MCP resources for Monday.com integration.
+Provides resource handlers for accessing Monday.com data.
+"""
 import json
 from datetime import datetime, timedelta
 from functools import wraps
-from monday_config import mcp, monday_client, MONDAY_BOARD_ID, logger
+from .config import mcp, monday_client, MONDAY_BOARD_ID, logger
 
 # Simplified cache system
 CACHE = {"data": {}, "timestamp": {}, "duration": timedelta(minutes=5)}

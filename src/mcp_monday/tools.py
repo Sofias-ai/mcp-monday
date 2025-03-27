@@ -1,6 +1,10 @@
+"""
+MCP tools for Monday.com integration.
+Provides tools for interacting with Monday.com boards and items.
+"""
 import json
 from functools import wraps
-from monday_config import mcp, monday_client, MONDAY_BOARD_ID, logger
+from .config import mcp, monday_client, MONDAY_BOARD_ID, logger
 from mcp.server.fastmcp.server import Context
 
 # Decorators and utilities to simplify tools

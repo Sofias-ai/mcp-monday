@@ -1,12 +1,19 @@
-import os, logging
+"""
+Configuration for the MCP-Monday integration.
+Handles environment variables, logging, and client initialization.
+"""
+import os
+import logging
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from monday import MondayClient
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                   handlers=[logging.FileHandler('monday_server.log'), logging.StreamHandler()])
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler('monday_server.log'), logging.StreamHandler()]
+)
 logger = logging.getLogger('monday_mcp')
 
 # Load environment variables
